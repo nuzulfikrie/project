@@ -1,0 +1,89 @@
+
+
+# 1. **`version: '3.1'`**: This specifies the version of the Docker Compose file format. In this case, it's version 3.1.
+
+# 2. **`services:`**: This section defines the individual services within your application.
+
+#     - **`mailhog:`**: A service running the MailHog image, which is a tool for testing email functionality during development. It exposes port 8025 for the web interface.
+
+#     - **`redis:`**: A service running the Redis image. Redis is an in-memory data structure store often used for caching or message queuing.
+
+#     - **`mysql:`**: A service running the MySQL 8.0 image. It sets up environment variables for the root password, database name, and user credentials. Port 3306 is exposed for MySQL connections, and data is stored in a volume named `mysql_data`.
+
+#     - **`webserver:`**: A service running the Nginx image. It specifies a working directory, mounts application code from your local machine, and uses a custom Nginx configuration file. Port 80 is exposed for HTTP traffic, and it depends on the `php-fpm` service.
+
+#     - **`php-fpm:`**: A service built from the current directory (presumably containing PHP code). It sets up a working directory, mounts application code, and specifies PHP version 8.1. It also connects to the `app-network`.
+
+#     - **`node:`**: A service running the Node.js 18 image. It sets up a working directory for frontend code, mounts application code, and runs an npm build command. Port 3000 is exposed for Node.js development.
+
+# 3. **`networks:`**: Defines the `app-network` bridge network that connects the services.
+
+# 4. **`volumes:`**: Creates a volume named `mysql_data` for persistent MySQL data storage.
+
+
+version: '3.1'
+services:
+    mailhog:
+        image: 'mailhog/mailhog:latest'
+        ports:
+            - '18001:8025'
+
+    redis:
+        image: 'redis:alpine'
+
+    mysql:
+        image: 'mysql:8.0'
+        environment:
+            - MYSQL_ROOT_PASSWORD=123456
+            - MYSQL_DATABASE=compass
+            - MYSQL_USER=app
+            - MYSQL_PASSWORD=123456
+        ports:
+            - '18002:3306'
+        volumes:
+            - mysql_data:/var/lib/mysql
+
+    webserver:
+        image: 'nginx:alpine'
+        working_dir: /application
+        volumes:
+            - 'C:/development/creditmapper-be-source:/application'
+            - './phpdocker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf'
+        ports:
+            - '8002:80'
+        depends_on:
+            - php-fpm
+        networks:
+            - app-network
+
+    php-fpm:
+        build: .
+        working_dir: /application
+        volumes:
+            - 'C:/development/creditmapper-be-source:/application'
+            - './phpdocker/php-fpm/php-ini-overrides.ini:/etc/php/8.1/fpm/conf.d/99-overrides.ini'
+        environment:
+            PHP_VERSION: '8.1'
+        networks:
+            - app-network
+
+    node:
+        image: node:18
+        container_name: node
+        working_dir: /frontend
+        ports:
+            - "3002:3000"
+        volumes:
+            - 'C:/development/creditmapper-fe-source:/frontend'
+        environment:
+            CI: false
+        command: sh -c "npm ci && cp .env.live.ci .env && npm run build --if-present"
+        networks:
+            - app-network
+
+networks:
+    app-network:
+        driver: bridge
+
+volumes:
+    mysql_data:
